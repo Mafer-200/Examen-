@@ -8,7 +8,7 @@ module.exports = app => {
     // Retrieve all published Client
     router.get("/status", cancion.findAllStatus);
     // Retrieve a single Client with id
-    router.get("/:id", cancion.findOne);
+    router.get("/:nombre", cancion.findOne);
     // Update a Client with id
     router.put("/update/:id", cancion.update);
     // Delete a Client with id

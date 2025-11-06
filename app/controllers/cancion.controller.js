@@ -1,153 +1,142 @@
-// importamos db los modelos en este caso si tenemos uno o mas, se puede referenciar db."nombreModelo".   
+// controllers/cancion.controller.js
 const db = require("../models");
-const cancion = db.canciones;
-const Op = db.Sequelize.Op;
+const cancion = db.canciones;           // Asegúrate que en models/index.js exportas "canciones"
+const { Op } = db.Sequelize;
 
-// Create and Save a new Client
-exports.create = (req, res) => {
-    // Validamos que dentro del  request no venga vacio el nombre, de lo contrario returna error
-    if (!req.body.nombre) {
-        res.status(400).send({
-            message: "Content can not be empty!"
-        });
-        return;
+/** Normaliza el payload entrante para tolerar typos/aliases del frontend */
+function normalizeCancionPayload(body = {}) {
+  return {
+    nombre: body.nombre ?? null,
+  
+    descripcion: body.descripcion ?? body.descrpcion ?? null,
+
+    artista: body.artista ?? null,
+    duracion: body.duracion ?? null,
+
+    // atributo correcto: "extension" (si tu modelo tiene extencion, ajusta abajo)
+    extension: body.extension ?? body.extencion ?? null,
+
+    // atributo correcto: "album"
+    album: body.album ?? body.albun ?? null,
+
+    lanzamiento: body.lanzamiento ?? null,
+
+    // Si decides tener status (boolean), permite sobreescritura
+    ...(body.status !== undefined ? { status: body.status } : {})
+  };
+}
+
+// Create and Save a new Cancion
+exports.create = async (req, res) => {
+  try {
+    if (!req.body || !req.body.nombre) {
+      return res.status(400).send({ message: "El nombre es requerido." });
     }
 
-    // Create a Client, definiendo una variable con la estructura del reques para luego solo ser enviada como parametro mas adelante. 
-    const canciones = {
-        nombre: req.body.nombre,
-        descripcion: req.body.descripcion,
-        artista: req.body.artista, 
-        duracion: req.body.duracion,
-        extencion: req.body.extencion,
-        album: req.body.album,
-        lanzamiento: req.body.lanzamiento 
-        // utilizando ? nos ayuda a indicar que el paramatro puede ser opcional dado que si no viene, le podemos asignar un valor default
-        
-    };
-
-    // Save a new Client into the database
-    cancion.create(canciones)
-        .then(data => {
-            res.send(data);
-        })
-        .catch(err => {
-            res.status(500).send({
-                message:
-                    err.message || "Some error occurred while creating the Cancion."
-            });
-        });
+    const payload = normalizeCancionPayload(req.body);
+    const data = await cancion.create(payload);
+    return res.status(201).send(data);
+  } catch (err) {
+    return res.status(500).send({
+      message: err.message || "Ocurrió un error creando la canción."
+    });
+  }
 };
 
-// Retrieve all Client from the database.
-exports.findAll = (req, res) => {
+// Retrieve all from the database (?nombre=...)
+exports.findAll = async (req, res) => {
+  try {
     const nombre = req.query.nombre;
-    var condition = nombre ? { nombre: { [Op.iLike]: `%${nombre}%` } } : null;
+    const where = nombre
+      ? { nombre: { [Op.iLike]: `%${nombre}%` } } // requiere Postgres
+      : undefined;
 
-    cancion.findAll({ where: condition })
-        .then(data => {
-            res.send(data);
-        })
-        .catch(err => {
-            res.status(500).send({
-                message:
-                    err.message || "Some error occurred while retrieving cancion."
-            });
-        });
+    const data = await cancion.findAll({ where });
+    return res.send(data);
+  } catch (err) {
+    return res.status(500).send({
+      message: err.message || "Ocurrió un error listando canciones."
+    });
+  }
 };
 
-// Find a single Tutorial with an id
-exports.findOne = (req, res) => {
+// Find one by nombre (param)
+exports.findOne = async (req, res) => {
+  try {
     const nombre = req.params.nombre;
+    const data = await cancion.findOne({ where: { nombre } });
 
-    cancion.findByPk(id)
-        .then(data => {
-            res.send(data);
-        })
-        .catch(err => {
-            res.status(500).send({
-                message: "Error retrieving cancion with id=" + nombre
-            });
-        });
+    if (!data) {
+      return res
+        .status(404)
+        .send({ message: `No se encontró la canción con nombre=${nombre}` });
+    }
+    return res.send(data);
+  } catch (err) {
+    return res
+      .status(500)
+      .send({ message: "Error recuperando canción con nombre=" + req.params.nombre });
+  }
 };
 
-// Update a Tutorial by the id in the request
-exports.update = (req, res) => {
+// Update by id
+exports.update = async (req, res) => {
+  try {
     const id = req.params.id;
+    // Normaliza para que aunque llegue "extencion"/"descrpcion" se guarde bien
+    const payload = normalizeCancionPayload(req.body);
 
-    cancion.update(req.body, {
-        where: { id: id }
-    })
-        .then(num => {
-            if (num == 1) {
-                res.send({
-                    message: "cancion was updated successfully."
-                });
-            } else {
-                res.send({
-                    message: `Cannot update Client with id=${id}. Maybe Client was not found or req.body is empty!`
-                });
-            }
-        })
-        .catch(err => {
-            res.status(500).send({
-                message: "Error updating Client with id=" + id
-            });
-        });
+    const [count] = await cancion.update(payload, { where: { id } });
+    if (count === 1) {
+      return res.send({ message: "Canción actualizada correctamente." });
+    } else {
+      return res
+        .status(404)
+        .send({ message: `No se pudo actualizar. ¿Existe la canción id=${id}?` });
+    }
+  } catch (err) {
+    return res.status(500).send({ message: "Error actualizando id=" + req.params.id });
+  }
 };
 
-// Delete a Client with the specified id in the request
-exports.delete = (req, res) => {
+// Delete by id
+exports.delete = async (req, res) => {
+  try {
     const id = req.params.id;
-    // utilizamos el metodo destroy para eliminar el objeto mandamos la condicionante where id = parametro que recibimos 
-    cancion.destroy({
-        where: { id: id }
-    })
-        .then(num => {
-            if (num == 1) {
-                res.send({
-                    message: "Client was deleted successfully!"
-                });
-            } else {
-                res.send({
-                    message: `Cannot delete Client with id=${id}. El cancion no fue encontado!`
-                });
-            }
-        })
-        .catch(err => {
-            res.status(500).send({
-                message: "Could not delete Tutorial with id=" + id
-            });
-        });
+    const count = await cancion.destroy({ where: { id } });
+    if (count === 1) {
+      return res.send({ message: "Canción eliminada correctamente." });
+    } else {
+      return res
+        .status(404)
+        .send({ message: `No se pudo eliminar. Canción id=${id} no encontrada.` });
+    }
+  } catch (err) {
+    return res.status(500).send({ message: "Error eliminando id=" + req.params.id });
+  }
 };
 
-// Delete all Clients from the database.
-exports.deleteAll = (req, res) => {
-    cancion.destroy({
-        where: {},
-        truncate: false
-    })
-        .then(nums => {
-            res.send({ message: `${nums} Clients were deleted successfully!` });
-        })
-        .catch(err => {
-            res.status(500).send({
-                message:
-                    err.message || "Some error occurred while removing all clients."
-            });
-        });
+// Delete all
+exports.deleteAll = async (req, res) => {
+  try {
+    const nums = await cancion.destroy({ where: {}, truncate: false });
+    return res.send({ message: `${nums} canciones eliminadas.` });
+  } catch (err) {
+    return res.status(500).send({
+      message: err.message || "Ocurrió un error eliminando todas las canciones."
+    });
+  }
 };
 
-// find all active Client, basado en el atributo status vamos a buscar que solo los cancion activos
-exports.findAllStatus = (req, res) => {
-    cancion.findAll({ where: { status: true } })
-        .then(data => {
-            res.send(data);
-        })
-        .catch(err => {
-            res.status(500).send({
-                message:
-                    err.message || "Some error occurred while retrieving Client."
-            });
-        }); 
+// find all where status = true (si tienes la columna 'status')
+exports.findAllStatus = async (req, res) => {
+  try {
+    // Si NO tienes la columna status en tu modelo/tabla, comenta/borra esta acción.
+    const data = await cancion.findAll({ where: { status: true } });
+    return res.send(data);
+  } catch (err) {
+    return res.status(500).send({
+      message: err.message || "Ocurrió un error listando canciones activas."
+    });
+  }
 };

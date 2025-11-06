@@ -1,13 +1,12 @@
-//Utilizamos module.export para exportar objetos para que puedan ser utilizados en otras clases
 module.exports = (sequelize, Sequelize) => {
-// usamos el sequelize.defina para "definir" el nombre de la entity en la BD, en este caso "cancion"
-// Usamos type.Sequelize para definir el tipo de datos de cada atributo de la entidad 
     const cancion = sequelize.define("cancion", {
         nombre: {
             type: Sequelize.STRING
         },
-        descrpcion: {
-            type: Sequelize.STRING
+       
+        descripcion: {
+            type: Sequelize.STRING,
+            field: "descrpcion"   // mapea a la columna vieja
         },
         artista: {
             type: Sequelize.STRING
@@ -15,15 +14,19 @@ module.exports = (sequelize, Sequelize) => {
         duracion: {
             type: Sequelize.INTEGER
         },
+       
         extension: {
-            type: Sequelize.STRING
+            type: Sequelize.STRING,
+            field: "extencion"
         },
-        album:{
+        
+        album: {
             type: Sequelize.STRING
         },
         lanzamiento: {
             type: Sequelize.STRING
         }
     });
+
     return cancion;
 };
