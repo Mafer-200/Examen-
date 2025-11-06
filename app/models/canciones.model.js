@@ -1,32 +1,20 @@
 module.exports = (sequelize, Sequelize) => {
-    const cancion = sequelize.define("cancion", {
-        nombre: {
-            type: Sequelize.STRING
-        },
-       
-        descripcion: {
-            type: Sequelize.STRING,
-            field: "descrpcion"   // mapea a la columna vieja
-        },
-        artista: {
-            type: Sequelize.STRING
-        },
-        duracion: {
-            type: Sequelize.INTEGER
-        },
-       
-        extension: {
-            type: Sequelize.STRING,
-            field: "extencion"
-        },
-        
-        album: {
-            type: Sequelize.STRING
-        },
-        lanzamiento: {
-            type: Sequelize.STRING
-        }
-    });
+  const cancion = sequelize.define("cancion", {
+    nombre: { type: Sequelize.STRING },
 
-    return cancion;
+    // Si en tu DB la columna correcta es "descripcion", usa field: "descripcion".
+    // Si tu DB aún tiene "descrpcion", cámbialo a field: "descrpcion".
+    descripcion: { type: Sequelize.STRING, field: "descripcion" },
+
+    artista: { type: Sequelize.STRING },
+    duracion: { type: Sequelize.INTEGER },
+
+    // 🔴 Importante: usa la columna correcta de tu DB
+    extension: { type: Sequelize.STRING, field: "extension" },
+
+    album: { type: Sequelize.STRING },
+    lanzamiento: { type: Sequelize.STRING }
+  });
+
+  return cancion;
 };

@@ -1,38 +1,56 @@
 // controllers/cancion.controller.js
 const db = require("../models");
-const cancion = db.canciones;           // Asegúrate que en models/index.js exportas "canciones"
-const { Op } = db.Sequelize;
 
-/** Normaliza el payload entrante para tolerar typos/aliases del frontend */
-function normalizeCancionPayload(body = {}) {
-  return {
-    nombre: body.nombre ?? null,
-  
-    descripcion: body.descripcion ?? body.descrpcion ?? null,
+// Tolera export en singular o plural
+const cancion = db.cancion || db.canciones;
+const Op = db.Sequelize.Op;
 
-    artista: body.artista ?? null,
-    duracion: body.duracion ?? null,
+// Elegir operador LIKE según el dialecto
+const LIKE_OP = Op.iLike ? Op.iLike : Op.like;
 
-    // atributo correcto: "extension" (si tu modelo tiene extencion, ajusta abajo)
-    extension: body.extension ?? body.extencion ?? null,
-
-    // atributo correcto: "album"
-    album: body.album ?? body.albun ?? null,
-
-    lanzamiento: body.lanzamiento ?? null,
-
-    // Si decides tener status (boolean), permite sobreescritura
-    ...(body.status !== undefined ? { status: body.status } : {})
-  };
+/** Devuelve un objeto sin propiedades undefined */
+function pickDefined(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj || {})) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
 }
 
-// Create and Save a new Cancion
+/** Normaliza body: acepta 'extencion'/'descrpcion' y las mapea a nombres correctos */
+function normalizeCancionPayload(body = {}) {
+  const descripcion = body.descripcion ?? body.descrpcion;
+  const extension   = body.extension   ?? body.extencion;
+  const album       = body.album       ?? body.albun;
+
+  let duracion = body.duracion;
+  if (duracion != null && duracion !== "") {
+    const n = Number(duracion);
+    duracion = Number.isFinite(n) ? n : undefined;
+  } else {
+    duracion = undefined;
+  }
+
+  return pickDefined({
+    nombre: body.nombre,
+    descripcion,
+    artista: body.artista,
+    duracion,
+    extension,
+    album,
+    lanzamiento: body.lanzamiento,
+    // status: body.status, // descomenta si tienes la columna en la tabla
+  });
+}
+
+// ==============================
+// Create
+// ==============================
 exports.create = async (req, res) => {
   try {
     if (!req.body || !req.body.nombre) {
       return res.status(400).send({ message: "El nombre es requerido." });
     }
-
     const payload = normalizeCancionPayload(req.body);
     const data = await cancion.create(payload);
     return res.status(201).send(data);
@@ -43,12 +61,14 @@ exports.create = async (req, res) => {
   }
 };
 
-// Retrieve all from the database (?nombre=...)
+// =========================================
+// Find All (?nombre=...)
+// =========================================
 exports.findAll = async (req, res) => {
   try {
-    const nombre = req.query.nombre;
+    const { nombre } = req.query;
     const where = nombre
-      ? { nombre: { [Op.iLike]: `%${nombre}%` } } // requiere Postgres
+      ? { nombre: { [LIKE_OP]: `%${nombre}%` } }
       : undefined;
 
     const data = await cancion.findAll({ where });
@@ -60,10 +80,12 @@ exports.findAll = async (req, res) => {
   }
 };
 
-// Find one by nombre (param)
+// ===============================
+// Find One by nombre
+// ===============================
 exports.findOne = async (req, res) => {
   try {
-    const nombre = req.params.nombre;
+    const { nombre } = req.params;
     const data = await cancion.findOne({ where: { nombre } });
 
     if (!data) {
@@ -79,11 +101,12 @@ exports.findOne = async (req, res) => {
   }
 };
 
+// ===============================
 // Update by id
+// ===============================
 exports.update = async (req, res) => {
   try {
-    const id = req.params.id;
-    // Normaliza para que aunque llegue "extencion"/"descrpcion" se guarde bien
+    const { id } = req.params;
     const payload = normalizeCancionPayload(req.body);
 
     const [count] = await cancion.update(payload, { where: { id } });
@@ -99,10 +122,12 @@ exports.update = async (req, res) => {
   }
 };
 
+// ===============================
 // Delete by id
+// ===============================
 exports.delete = async (req, res) => {
   try {
-    const id = req.params.id;
+    const { id } = req.params;
     const count = await cancion.destroy({ where: { id } });
     if (count === 1) {
       return res.send({ message: "Canción eliminada correctamente." });
@@ -116,7 +141,9 @@ exports.delete = async (req, res) => {
   }
 };
 
-// Delete all
+// ===============================
+// Delete All
+// ===============================
 exports.deleteAll = async (req, res) => {
   try {
     const nums = await cancion.destroy({ where: {}, truncate: false });
@@ -128,10 +155,11 @@ exports.deleteAll = async (req, res) => {
   }
 };
 
-// find all where status = true (si tienes la columna 'status')
+// ===============================
+// Find All Status = true (si existe columna)
+// ===============================
 exports.findAllStatus = async (req, res) => {
   try {
-    // Si NO tienes la columna status en tu modelo/tabla, comenta/borra esta acción.
     const data = await cancion.findAll({ where: { status: true } });
     return res.send(data);
   } catch (err) {
